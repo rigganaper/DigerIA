@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-[#f9f9f9] text-[#1a1c1c] font-sans selection:bg-[#b1241a] selection:text-white transition-colors duration-300;
+  }
+
+  .dark body {
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+  }
+}
+
+.dark {
+  --bg-primary: #0a0a0a;
+  --bg-secondary: #1a1c1c;
+  --bg-tertiary: #2a2a2a;
+  --border-primary: #333333;
+  --text-primary: #f9f9f9;
+  --text-secondary: #a1a1aa;
+}
+
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.tab-active {
+  @apply bg-[#b1241a] text-white;
+}
+
+@keyframes progress-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+@keyframes dot-pulse {
+  0% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.animate-progress-pulse { animation: progress-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite; }
+.animate-dot-pulse { animation: dot-pulse 1.5s ease-in-out infinite; }
+

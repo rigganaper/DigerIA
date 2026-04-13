@@ -1,0 +1,90 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and subscription data",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "tier": { "type": "string", "enum": ["free", "pro"] },
+        "creditsUsed": { "type": "number" },
+        "maxCredits": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "tier"]
+    },
+    "Analysis": {
+      "title": "Analysis",
+      "description": "Result of a content analysis",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "keyConcepts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "title": { "type": "string" },
+              "description": { "type": "string" }
+            }
+          }
+        },
+        "contentType": { "type": "string", "enum": ["url", "text", "file", "audio", "video"] },
+        "source": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "folderId": { "type": "string" }
+      },
+      "required": ["userId", "title", "summary", "createdAt"]
+    },
+    "Folder": {
+      "title": "Folder",
+      "description": "User folder for organizing analyses",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name"]
+    },
+    "Prompt": {
+      "title": "Prompt",
+      "description": "Custom prompt template",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "body": { "type": "string" },
+        "category": { "type": "string", "enum": ["TECHNICAL", "DATA", "CREATIVE"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "body"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/analyses/{analysisId}": {
+      "schema": "Analysis",
+      "description": "Content analyses"
+    },
+    "/folders/{folderId}": {
+      "schema": "Folder",
+      "description": "User folders"
+    },
+    "/prompts/{promptId}": {
+      "schema": "Prompt",
+      "description": "User prompt templates"
+    }
+  }
+}

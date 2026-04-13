@@ -1,0 +1,5 @@
+{
+  "name": "DIGERIA",
+  "description": "Arquitectura Radical de Aprendizaje. Transforma datos en capital intelectual.",
+  "requestFramePermissions": ["microphone"]
+}
