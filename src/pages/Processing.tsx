@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { geminiService } from '../services/gemini';
@@ -15,74 +15,76 @@ const Processing = () => {
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>(['> SYSTEM_BOOT_SEQUENCE_INITIALIZED', '> CONNECTING_TO_NEURAL_CORE...']);
 
+  const processStarted = useRef(false);
+
   useEffect(() => {
     if (!content && !fileData) {
       navigate('/analyze');
       return;
     }
+    
+    if (processStarted.current) return;
+    processStarted.current = true;
 
     const process = async () => {
-      // Realistic simulation of steps
-      const totalSteps = steps.length;
+      setStep(1);
+      setLogs(prev => [...prev, '> EJECUTANDO: INITIALIZE API...', '> ESTADO: OK']);
+      setProgress(20);
       
-      for (let i = 1; i <= totalSteps; i++) {
-        setStep(i);
-        const currentStep = steps[i-1];
-        setLogs(prev => [...prev, `> EXECUTING: ${currentStep.label.toUpperCase()}`, `> STATUS: OK [${Math.floor(Math.random() * 100 + 900)}ms]`]);
-        
-        // Granular progress updates within each step
-        const startProgress = ((i - 1) / totalSteps) * 100;
-        const endProgress = (i / totalSteps) * 100;
-        const iterations = 10;
-        const increment = (endProgress - startProgress) / iterations;
-        
-        for (let j = 0; j < iterations; j++) {
-          setProgress(startProgress + (increment * j));
-          await new Promise(resolve => setTimeout(resolve, (Math.random() * 100) + 50));
-        }
-        
-        setProgress(endProgress);
-      }
-      
-      setLogs(prev => [...prev, '> FINALIZING_DIGEST...', '> SYNC_COMPLETE', '> REDIRECTING_TO_RESULT_INTERFACE']);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Mock result instead of calling API as requested
-      const mockResult = {
-        title: fileData ? fileData.name : "ANÁLISIS SIMULADO",
-        sections: [
-          {
-            title: "RESUMEN EJECUTIVO",
-            content: "Este es un análisis generado en modo simulación. El sistema ha procesado el contenido y ha identificado los puntos clave de manera estructural.",
-            bulletPoints: ["Punto clave 1", "Punto clave 2", "Punto clave 3"]
-          },
-          {
-            title: "PLAN DE ACCIÓN",
-            content: "Basado en el contenido, se recomienda seguir los siguientes pasos para optimizar el aprendizaje.",
-            bulletPoints: ["Revisar conceptos fundamentales", "Aplicar técnica de Feynman", "Realizar ejercicios prácticos"]
+      try {
+        let resultData;
+        if (fileData) {
+          setStep(2);
+          setLogs(prev => [...prev, '> EJECUTANDO: ENVIAR ARCHIVO A GEMINI_3.1_PRO...', '> ESPERANDO RESPUESTA...']);
+          setProgress(50);
+          
+          if (fileData.mimeType.startsWith('image/')) {
+            resultData = await geminiService.analyzeImage(fileData.base64, fileData.mimeType, analysisType);
+          } else if (fileData.mimeType.startsWith('video/')) {
+            resultData = await geminiService.analyzeVideo(fileData.base64, fileData.mimeType, analysisType);
+          } else {
+            resultData = await geminiService.analyzeFile(fileData.base64, fileData.mimeType, analysisType);
           }
-        ]
-      };
-
-      if (user) {
-        const analysisData = {
-          userId: user.uid,
-          title: mockResult.title,
-          sections: mockResult.sections,
-          contentType: fileData ? 'file' : 'text',
-          source: fileData ? fileData.name : (content ? content.substring(0, 100) : 'Contenido simulado'),
-          createdAt: new Date().toISOString(),
-        };
-        
-        try {
-          await addDoc(collection(db, 'analyses'), analysisData);
-          navigate('/result', { state: { result: mockResult } });
-        } catch (error) {
-          console.error("Failed to save mock analysis", error);
-          navigate('/analyze');
+        } else {
+          setStep(2);
+          setLogs(prev => [...prev, '> EJECUTANDO: ANALIZAR TEXTO/URL...', '> ESPERANDO RESPUESTA...']);
+          setProgress(50);
+          resultData = await geminiService.analyzeText(content, analysisType);
         }
-      } else {
-        navigate('/result', { state: { result: mockResult } });
+
+        setProgress(90);
+        setStep(3);
+        setLogs(prev => [...prev, '> RESPUESTA RECIBIDA...', '> GUARDANDO RESULTADO...']);
+        
+        const finalResult = {
+          title: resultData.title || (fileData ? fileData.name : "Análisis"),
+          sections: resultData.sections || []
+        };
+
+        if (user) {
+          const analysisData = {
+            userId: user.uid,
+            title: finalResult.title,
+            sections: finalResult.sections,
+            contentType: fileData ? 'file' : 'text',
+            source: fileData ? fileData.name : (content ? content.substring(0, 100) : 'Contenido'),
+            createdAt: new Date().toISOString(),
+          };
+          
+          await addDoc(collection(db, 'analyses'), analysisData);
+        }
+
+        setProgress(100);
+        setStep(4);
+        setLogs(prev => [...prev, '> REDIRIGIENDO...']);
+        
+        navigate('/result', { state: { result: finalResult } });
+        
+      } catch (error: any) {
+        console.error("Error processing with IA", error);
+        const msg = error?.message || "Error desconocido al contactar la IA.";
+        alert(`Error al procesar: ${msg}`);
+        navigate('/analyze');
       }
     };
 
@@ -91,14 +93,9 @@ const Processing = () => {
 
   const steps = [
     { id: 1, label: 'Inicializando motor neuronal...' },
-    { id: 2, label: 'Analizando estructura de datos...' },
-    { id: 3, label: 'Extrayendo tokens semánticos...' },
-    { id: 4, label: 'Identificando entidades clave...' },
-    { id: 5, label: 'Generando referencias cruzadas...' },
-    { id: 6, label: 'Estructurando insights accionables...' },
-    { id: 7, label: 'Optimizando formato DIGEST...' },
-    { id: 8, label: 'Validando esquema JSON v2.1...' },
-    { id: 9, label: 'Sincronizando con almacenamiento...' },
+    { id: 2, label: 'Procesamiento profundo con IA...' },
+    { id: 3, label: 'Guardando datos analizados...' },
+    { id: 4, label: 'Redirigiendo a Interfaz...' }
   ];
 
   return (

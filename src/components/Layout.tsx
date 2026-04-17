@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { useTheme } from '../ThemeContext';
 import { auth } from '../firebase';
-import { signOut, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signOut, GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { cn } from '../lib/utils';
 import { 
   Menu, 
@@ -34,8 +34,9 @@ export const Layout: React.FC<LayoutProps> = ({ children, hideNav, showBack }) =
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Login failed", error);
+      alert(`Error al iniciar sesión: ${error.message}`);
     }
   };
 

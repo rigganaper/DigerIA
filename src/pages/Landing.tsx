@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { auth } from '../firebase';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth';
 import { Layout } from '../components/Layout';
 import { Upload, Link as LinkIcon, Mic, Bolt, Folder, Settings } from 'lucide-react';
 
@@ -18,8 +18,9 @@ const Landing = () => {
       try {
         await signInWithPopup(auth, provider);
         navigate('/analyze');
-      } catch (error) {
+      } catch (error: any) {
         console.error("Login failed", error);
+        alert(`Error al iniciar sesión: ${error.message}`);
       }
     }
   };

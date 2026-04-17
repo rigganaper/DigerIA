@@ -31,6 +31,13 @@ const Analyze = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB limit
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`El archivo supera el límite de 5MB. Su tamaño es de ${(file.size / 1024 / 1024).toFixed(2)}MB. Sube uno más pequeño.`);
+      if (e.target) e.target.value = '';
+      return;
+    }
+
     setIsParsing(true);
     try {
       if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
@@ -134,7 +141,7 @@ const Analyze = () => {
                   <input 
                     type="file" 
                     className="hidden" 
-                    accept=".pdf,.docx,.txt"
+                    accept=".pdf,.docx,.txt,audio/*,video/*,image/*"
                     onChange={handleFileChange}
                     disabled={isParsing}
                   />
@@ -148,7 +155,7 @@ const Analyze = () => {
                       <p className="text-[0.7rem] font-black uppercase tracking-tight dark:text-[#f9f9f9]">
                         {isParsing ? "PROCESANDO ARCHIVO..." : fileData ? fileData.name : content ? "TEXTO EXTRAÍDO" : "ARRASTRAR DOCUMENTO O BUSCAR"}
                       </p>
-                      <p className="text-[9px] opacity-60 font-bold uppercase dark:text-[#f9f9f9]">PDF, DOCX, TXT (MAX. 25MB)</p>
+                      <p className="text-[9px] opacity-60 font-bold uppercase dark:text-[#f9f9f9]">MEDIA, TEXTO, PDF, DOCX (MAX. 5MB)</p>
                     </div>
                   </div>
                 </label>

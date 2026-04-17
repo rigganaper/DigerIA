@@ -1,6 +1,16 @@
 import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY || "" });
+const API_KEY = process.env.GEMINI_API_KEY || "";
+
+if (!API_KEY) {
+  console.error("❌ GEMINI_API_KEY no está configurada. Revisa tu archivo .env");
+}
+
+const ai = new GoogleGenAI({ apiKey: API_KEY });
+
+// Use stable models
+const PRO_MODEL = "gemini-2.5-pro";
+const FLASH_MODEL = "gemini-2.5-flash";
 
 export interface AnalysisResult {
   title: string;
@@ -41,103 +51,143 @@ Debes devolver SIEMPRE un JSON con esta estructura:
   ]
 }`;
 
+function handleGeminiError(error: any): never {
+  const message = error?.message || String(error);
+  console.error("Gemini API Error:", message);
+
+  if (!API_KEY) {
+    throw new Error("La API Key de Gemini no está configurada. Contacta al administrador.");
+  }
+  if (message.includes("API_KEY_INVALID") || message.includes("401")) {
+    throw new Error("La API Key de Gemini es inválida. Verifica tu configuración.");
+  }
+  if (message.includes("RESOURCE_EXHAUSTED") || message.includes("429") || message.includes("quota")) {
+    throw new Error("Se agotó la cuota de la API de Gemini. Intenta de nuevo más tarde.");
+  }
+  if (message.includes("Request payload size") || message.includes("too large") || message.includes("413")) {
+    throw new Error("El archivo es demasiado grande para ser procesado. Intenta con un archivo más pequeño (máx. 5MB).");
+  }
+  if (message.includes("not found") || message.includes("404")) {
+    throw new Error("Modelo de IA no disponible. Contacta al administrador.");
+  }
+  throw new Error(`Error de IA: ${message}`);
+}
+
 export const geminiService = {
   async analyzeText(text: string, prompt: string = "Analiza este contenido."): Promise<AnalysisResult> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: `INSTRUCCIONES DEL USUARIO: ${prompt}\n\nCONTENIDO A PROCESAR:\n${text}`,
-      config: {
-        responseMimeType: "application/json",
-        systemInstruction: SYSTEM_INSTRUCTION,
-      }
-    });
-    
     try {
+      const response = await ai.models.generateContent({
+        model: PRO_MODEL,
+        contents: `INSTRUCCIONES DEL USUARIO: ${prompt}\n\nCONTENIDO A PROCESAR:\n${text}`,
+        config: {
+          responseMimeType: "application/json",
+          systemInstruction: SYSTEM_INSTRUCTION,
+        }
+      });
+
       return JSON.parse(response.text || "{}");
-    } catch (e) {
-      console.error("Error parsing Gemini response", e);
-      throw new Error("No se pudo procesar la respuesta de la IA.");
+    } catch (e: any) {
+      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
+      handleGeminiError(e);
     }
   },
 
-  async analyzeImage(base64Data: string, mimeType: string): Promise<AnalysisResult> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: "Analiza esta imagen y extrae la información clave." }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        systemInstruction: SYSTEM_INSTRUCTION,
-      }
-    });
-    return JSON.parse(response.text || "{}");
+  async analyzeImage(base64Data: string, mimeType: string, prompt: string = "Analiza esta imagen y extrae la información clave."): Promise<AnalysisResult> {
+    try {
+      const response = await ai.models.generateContent({
+        model: FLASH_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          systemInstruction: SYSTEM_INSTRUCTION,
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    } catch (e: any) {
+      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
+      handleGeminiError(e);
+    }
   },
 
-  async analyzeVideo(base64Data: string, mimeType: string): Promise<AnalysisResult> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: "Analiza este video para obtener información clave." }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        systemInstruction: SYSTEM_INSTRUCTION,
-      }
-    });
-    return JSON.parse(response.text || "{}");
+  async analyzeVideo(base64Data: string, mimeType: string, prompt: string = "Analiza este video para obtener información clave."): Promise<AnalysisResult> {
+    try {
+      const response = await ai.models.generateContent({
+        model: FLASH_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          systemInstruction: SYSTEM_INSTRUCTION,
+        }
+      });
+      return JSON.parse(response.text || "{}");
+    } catch (e: any) {
+      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
+      handleGeminiError(e);
+    }
   },
 
   async analyzeFile(base64Data: string, mimeType: string, prompt: string = "Analiza este documento."): Promise<AnalysisResult> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        systemInstruction: SYSTEM_INSTRUCTION,
-      }
-    });
-    
     try {
+      const response = await ai.models.generateContent({
+        model: PRO_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
+          ]
+        },
+        config: {
+          responseMimeType: "application/json",
+          systemInstruction: SYSTEM_INSTRUCTION,
+        }
+      });
+
       return JSON.parse(response.text || "{}");
-    } catch (e) {
-      console.error("Error parsing Gemini response", e);
-      throw new Error("No se pudo procesar la respuesta de la IA.");
+    } catch (e: any) {
+      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
+      handleGeminiError(e);
     }
   },
 
   async transcribeAudio(base64Data: string, mimeType: string): Promise<string> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
-        parts: [
-          { inlineData: { data: base64Data, mimeType } },
-          { text: "Transcribe este audio palabra por palabra." }
-        ]
-      }
-    });
-    return response.text || "";
+    try {
+      const response = await ai.models.generateContent({
+        model: FLASH_MODEL,
+        contents: {
+          parts: [
+            { inlineData: { data: base64Data, mimeType } },
+            { text: "Transcribe este audio palabra por palabra." }
+          ]
+        }
+      });
+      return response.text || "";
+    } catch (e: any) {
+      handleGeminiError(e);
+    }
   },
 
   async thinkDeeply(query: string): Promise<string> {
-    const response = await ai.models.generateContent({
-      model: "gemini-3.1-pro-preview",
-      contents: query,
-      config: {
-        thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
-      }
-    });
-    return response.text || "";
+    try {
+      const response = await ai.models.generateContent({
+        model: PRO_MODEL,
+        contents: query,
+        config: {
+          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
+        }
+      });
+      return response.text || "";
+    } catch (e: any) {
+      handleGeminiError(e);
+    }
   }
 };
