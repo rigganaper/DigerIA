@@ -29,13 +29,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     getRedirectResult(auth).catch(() => {
       // Ignore errors from no pending redirect
     });
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+
+    let unsubProfile: (() => void) | null = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setIsAuthReady(true);
       
+      if (unsubProfile) {
+        unsubProfile();
+        unsubProfile = null;
+      }
+
       if (user) {
         const userDocRef = doc(db, 'users', user.uid);
-        const unsubProfile = onSnapshot(userDocRef, (docSnap) => {
+        unsubProfile = onSnapshot(userDocRef, (docSnap) => {
           if (docSnap.exists()) {
             setProfile(docSnap.data() as UserProfile);
           } else {
@@ -55,14 +63,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           setLoading(false);
         });
-        return () => unsubProfile();
       } else {
         setProfile(null);
         setLoading(false);
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubProfile) unsubProfile();
+    };
   }, []);
 
   return (

@@ -8,6 +8,11 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PromptTemplate } from '../types';
 
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set worker path for pdfjs-dist
+pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+
 const Analyze = () => {
   const { profile, user } = useAuth();
   const navigate = useNavigate();
@@ -41,13 +46,39 @@ const Analyze = () => {
     setIsParsing(true);
     try {
       if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
-        // Handle DOCX by extracting text
         const arrayBuffer = await file.arrayBuffer();
         const result = await mammoth.extractRawText({ arrayBuffer });
         setContent(result.value);
         setFileData(null);
+      } else if (file.type === 'application/pdf') {
+        const arrayBuffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        let text = '';
+        for (let i = 1; i <= pdf.numPages; i++) {
+          const page = await pdf.getPage(i);
+          const content = await page.getTextContent();
+          text += content.items.map((item: any) => item.str).join(' ') + '\n';
+        }
+        setContent(text);
+        setFileData(null);
+      } else if (file.type === 'text/plain') {
+        const text = await file.text();
+        setContent(text);
+        setFileData(null);
+      } else if (file.type.startsWith('image/')) {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const base64 = (reader.result as string).split(',')[1];
+          setFileData({
+            base64,
+            mimeType: file.type,
+            name: file.name
+          });
+          setContent(''); 
+        };
+        reader.readAsDataURL(file);
       } else {
-        // Handle other files (PDF, TXT) natively via Gemini
+        alert("Formato no soportado para extracción directa. Se intentará enviar como archivo genérico.");
         const reader = new FileReader();
         reader.onload = () => {
           const base64 = (reader.result as string).split(',')[1];
@@ -56,7 +87,7 @@ const Analyze = () => {
             mimeType: file.type || 'application/octet-stream',
             name: file.name
           });
-          setContent(''); // Clear text content if file is selected
+          setContent('');
         };
         reader.readAsDataURL(file);
       }
@@ -84,7 +115,9 @@ const Analyze = () => {
         {/* Uso del día section */}
         <div className="border-2 border-[#1a1c1c] dark:border-[#f9f9f9] p-4 bg-[#f3f3f4] dark:bg-[#1a1c1c] transition-colors">
           <div className="flex justify-between items-center mb-2">
-            <span className="text-[0.65rem] font-black uppercase tracking-widest text-[#1a1c1c] dark:text-[#f9f9f9]">2 USOS DEL DÍA</span>
+            <span className="text-[0.65rem] font-black uppercase tracking-widest text-[#1a1c1c] dark:text-[#f9f9f9]">
+              {Math.max(0, (profile?.maxCredits || 20) - (profile?.creditsUsed || 0))} CRÉDITOS DISPONIBLES HOY
+            </span>
             <span className="text-[0.65rem] font-black uppercase tracking-widest text-[#b1241a]">
               {profile?.creditsUsed || 0} / {profile?.maxCredits || 20} Créditos
             </span>
@@ -128,6 +161,12 @@ const Analyze = () => {
                     className="w-full h-40 bg-[#f9f9f9] dark:bg-[#121212] border-2 border-[#1a1c1c] dark:border-[#f9f9f9] p-4 font-sans text-lg focus:ring-0 focus:border-[#b1241a] dark:focus:border-[#b1241a] transition-none rounded-none outline-none resize-none dark:text-[#f9f9f9]" 
                     placeholder="Pega aquí tu URL o el texto que deseas procesar..."
                   ></textarea>
+                  <div className={cn(
+                    "absolute bottom-2 right-2 text-[0.6rem] font-bold px-1 py-0.5 border",
+                    content.length > 10000 ? "border-[#b1241a] text-[#b1241a] bg-white" : "border-[#1a1c1c] dark:border-[#f9f9f9] dark:text-[#f9f9f9] bg-white dark:bg-[#1a1c1c] opacity-50"
+                  )}>
+                    {content.length.toLocaleString()} / 10,000
+                  </div>
                 </div>
 
                 <div className="relative flex items-center gap-4">
@@ -186,9 +225,15 @@ const Analyze = () => {
                 <div className="mt-4">
                   <button 
                     onClick={handleAnalyze}
-                    className="bg-[#b1241a] text-white px-10 py-5 text-[0.75rem] font-black uppercase tracking-widest hover:brightness-110 transition-none w-full md:w-auto"
+                    disabled={isParsing || (!content && !fileData) || (profile?.creditsUsed || 0) >= (profile?.maxCredits || 20)}
+                    className={cn(
+                      "px-10 py-5 text-[0.75rem] font-black uppercase tracking-widest transition-none w-full md:w-auto",
+                      (isParsing || (!content && !fileData) || (profile?.creditsUsed || 0) >= (profile?.maxCredits || 20))
+                        ? "bg-zinc-500 text-zinc-300 cursor-not-allowed"
+                        : "bg-[#b1241a] text-white hover:brightness-110"
+                    )}
                   >
-                    ANALIZAR CONTENIDO
+                    {(profile?.creditsUsed || 0) >= (profile?.maxCredits || 20) ? 'SIN CRÉDITOS' : 'ANALIZAR CONTENIDO'}
                   </button>
                 </div>
               </div>

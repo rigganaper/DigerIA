@@ -3,17 +3,19 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { geminiService } from '../services/gemini';
 import { db } from '../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, updateDoc, increment } from 'firebase/firestore';
 import { useAuth } from '../AuthContext';
 
 const Processing = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { content, analysisType, fileData } = location.state || {};
   const [step, setStep] = useState(1);
   const [progress, setProgress] = useState(0);
   const [logs, setLogs] = useState<string[]>(['> SYSTEM_BOOT_SEQUENCE_INITIALIZED', '> CONNECTING_TO_NEURAL_CORE...']);
+  
+  const taskId = React.useMemo(() => `DG-${Math.floor(Math.random() * 999)}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`, []);
 
   const processStarted = useRef(false);
 
@@ -35,7 +37,7 @@ const Processing = () => {
         let resultData;
         if (fileData) {
           setStep(2);
-          setLogs(prev => [...prev, '> EJECUTANDO: ENVIAR ARCHIVO A GEMINI_3.1_PRO...', '> ESPERANDO RESPUESTA...']);
+          setLogs(prev => [...prev, '> EJECUTANDO: ENVIAR DATOS A NEURAL_PROCESSOR_V1...', '> ESPERANDO RESPUESTA...']);
           setProgress(50);
           
           if (fileData.mimeType.startsWith('image/')) {
@@ -62,6 +64,11 @@ const Processing = () => {
         };
 
         if (user) {
+          // Check credits before saving (optional, but good practice)
+          if ((profile?.creditsUsed || 0) >= (profile?.maxCredits || 20)) {
+             throw new Error("No tienes créditos suficientes para realizar este análisis.");
+          }
+
           const analysisData = {
             userId: user.uid,
             title: finalResult.title,
@@ -72,6 +79,11 @@ const Processing = () => {
           };
           
           await addDoc(collection(db, 'analyses'), analysisData);
+          
+          // Increment credits
+          await updateDoc(doc(db, 'users', user.uid), {
+            creditsUsed: increment(1)
+          });
         }
 
         setProgress(100);
@@ -152,7 +164,7 @@ const Processing = () => {
             <div className="mt-12">
               <div className="mb-8">
                 <p className="text-[0.75rem] font-bold uppercase text-[#5a413d] dark:text-[#dcdddd] mb-2">IDENTIFICADOR DE TAREA</p>
-                <p className="text-xl font-black tracking-tight dark:text-[#f9f9f9]">DG-992-XPR</p>
+                <p className="text-xl font-black tracking-tight dark:text-[#f9f9f9]">{taskId}</p>
               </div>
               <div>
                 <p className="text-[0.75rem] font-bold uppercase text-[#5a413d] dark:text-[#dcdddd] mb-2">ESTADO DEL MOTOR</p>

@@ -1,16 +1,51 @@
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+// ─── Multi-Provider AI Service ────────────────────────────────────────────────
+// Supports Groq (free, recommended), OpenRouter, and Mistral.
+// Set AI_PROVIDER in .env to switch: "groq" | "openrouter" | "mistral"
+//
+// Provider setup:
+//   Groq       → https://console.groq.com        → GROQ_API_KEY
+//   OpenRouter → https://openrouter.ai            → OPENROUTER_API_KEY
+//   Mistral    → https://console.mistral.ai       → MISTRAL_API_KEY
 
-const API_KEY = process.env.GEMINI_API_KEY || "";
+type Provider = "groq" | "openrouter" | "mistral";
+
+const PROVIDER = (process.env.AI_PROVIDER || "groq") as Provider;
+
+const KEYS: Record<Provider, string> = {
+  groq:        process.env.GROQ_API_KEY        || "",
+  openrouter:  process.env.OPENROUTER_API_KEY  || "",
+  mistral:     process.env.MISTRAL_API_KEY     || "",
+};
+
+const ENDPOINTS: Record<Provider, string> = {
+  groq:       "https://api.groq.com/openai/v1/chat/completions",
+  openrouter: "https://openrouter.ai/api/v1/chat/completions",
+  mistral:    "https://api.mistral.ai/v1/chat/completions",
+};
+
+// Models per provider — all free-tier capable
+const PRO_MODELS: Record<Provider, string> = {
+  groq:       "llama-3.3-70b-versatile",      // 32k context, free
+  openrouter: "google/gemini-2.5-pro-preview-05-06",
+  mistral:    "mistral-small-latest",          // free tier
+};
+
+const FLASH_MODELS: Record<Provider, string> = {
+  groq:       "llama-3.1-8b-instant",         // super fast, free
+  openrouter: "google/gemini-2.5-flash-preview-04-17",
+  mistral:    "mistral-small-latest",
+};
+
+const API_KEY  = KEYS[PROVIDER];
+const ENDPOINT = ENDPOINTS[PROVIDER];
+const PRO_MODEL   = PRO_MODELS[PROVIDER];
+const FLASH_MODEL = FLASH_MODELS[PROVIDER];
 
 if (!API_KEY) {
-  console.error("❌ GEMINI_API_KEY no está configurada. Revisa tu archivo .env");
+  console.error(`❌ API Key para "${PROVIDER}" no encontrada. Revisa tu .env (${PROVIDER.toUpperCase()}_API_KEY)`);
 }
 
-const ai = new GoogleGenAI({ apiKey: API_KEY });
-
-// Use stable models
-const PRO_MODEL = "gemini-2.5-pro";
-const FLASH_MODEL = "gemini-2.5-flash";
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export interface AnalysisResult {
   title: string;
@@ -20,6 +55,8 @@ export interface AnalysisResult {
     content: any;
   }[];
 }
+
+// ─── System prompt ────────────────────────────────────────────────────────────
 
 const SYSTEM_INSTRUCTION = `Eres un experto en síntesis de información y arquitectura de aprendizaje radical. 
 Tu objetivo es "digerir" el contenido para el usuario, transformando datos brutos en capital intelectual.
@@ -39,7 +76,7 @@ Posibles tipos de secciones que puedes generar:
 - TABLE: Datos estructurados en formato de tabla (puedes devolver un array de objetos).
 - METAPHOR: Una analogía creativa para explicar el concepto central.
 
-Debes devolver SIEMPRE un JSON con esta estructura:
+Debes devolver SIEMPRE un JSON válido con esta estructura exacta (sin markdown, sin bloques de código, solo JSON puro):
 {
   "title": "Título impactante del análisis",
   "sections": [
@@ -51,143 +88,171 @@ Debes devolver SIEMPRE un JSON con esta estructura:
   ]
 }`;
 
-function handleGeminiError(error: any): never {
-  const message = error?.message || String(error);
-  console.error("Gemini API Error:", message);
+// ─── Core fetch helper ────────────────────────────────────────────────────────
 
+async function callAI(
+  model: string,
+  messages: { role: "system" | "user"; content: any }[],
+  jsonMode: boolean = false
+): Promise<string> {
   if (!API_KEY) {
-    throw new Error("La API Key de Gemini no está configurada. Contacta al administrador.");
+    throw new Error(
+      `La API Key de ${PROVIDER} no está configurada. ` +
+      `Añade ${PROVIDER.toUpperCase()}_API_KEY en tu .env`
+    );
   }
-  if (message.includes("API_KEY_INVALID") || message.includes("401")) {
-    throw new Error("La API Key de Gemini es inválida. Verifica tu configuración.");
+
+  const body: any = { model, messages, max_tokens: 4096 };
+
+  // json_object mode: Groq and OpenRouter support it; Mistral uses a different key
+  if (jsonMode) {
+    if (PROVIDER === "mistral") {
+      body.response_format = { type: "json_object" };
+    } else {
+      body.response_format = { type: "json_object" };
+    }
   }
-  if (message.includes("RESOURCE_EXHAUSTED") || message.includes("429") || message.includes("quota")) {
-    throw new Error("Se agotó la cuota de la API de Gemini. Intenta de nuevo más tarde.");
+
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${API_KEY}`,
+    "Content-Type": "application/json",
+  };
+
+  // OpenRouter requires these extra headers
+  if (PROVIDER === "openrouter") {
+    headers["HTTP-Referer"] = window.location.origin;
+    headers["X-Title"] = "DigerIA";
   }
-  if (message.includes("Request payload size") || message.includes("too large") || message.includes("413")) {
-    throw new Error("El archivo es demasiado grande para ser procesado. Intenta con un archivo más pequeño (máx. 5MB).");
+
+  const response = await fetch(ENDPOINT, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    handleAPIError(response.status, errText);
   }
-  if (message.includes("not found") || message.includes("404")) {
-    throw new Error("Modelo de IA no disponible. Contacta al administrador.");
-  }
-  throw new Error(`Error de IA: ${message}`);
+
+  const data = await response.json();
+  return data.choices?.[0]?.message?.content || "";
 }
 
+// ─── Error handler ────────────────────────────────────────────────────────────
+
+function handleAPIError(status: number, message: string): never {
+  console.error(`AI API Error [${PROVIDER}][${status}]:`, message);
+  if (status === 401) throw new Error(`La API Key de ${PROVIDER} es inválida. Verifica tu configuración.`);
+  if (status === 402) throw new Error(`Sin créditos en ${PROVIDER}. Revisa tu cuenta o cambia de proveedor.`);
+  if (status === 429) throw new Error(`Límite de velocidad alcanzado en ${PROVIDER}. Espera unos segundos.`);
+  if (status === 413) throw new Error("El contenido es demasiado grande. Intenta con un texto más corto.");
+  if (status === 404) throw new Error("Modelo no disponible. Contacta al administrador.");
+  throw new Error(`Error de IA [${status}]: ${message}`);
+}
+
+function rethrowIfKnown(e: any): void {
+  const known = ["La API Key", "Se agotó", "El archivo", "Error de IA", "Modelo de IA", "Sin créditos", "Límite", "El contenido"];
+  if (known.some(prefix => e.message?.startsWith(prefix))) throw e;
+}
+
+// ─── Exported service (same public interface as before) ───────────────────────
+
+// Helper to clean JSON from potential markdown code blocks
+const cleanJSONResponse = (text: string): string => {
+  return text.replace(/```json/g, '').replace(/```/g, '').trim();
+};
+
 export const geminiService = {
+
   async analyzeText(text: string, prompt: string = "Analiza este contenido."): Promise<AnalysisResult> {
     try {
-      const response = await ai.models.generateContent({
-        model: PRO_MODEL,
-        contents: `INSTRUCCIONES DEL USUARIO: ${prompt}\n\nCONTENIDO A PROCESAR:\n${text}`,
-        config: {
-          responseMimeType: "application/json",
-          systemInstruction: SYSTEM_INSTRUCTION,
-        }
-      });
-
-      return JSON.parse(response.text || "{}");
+      const result = await callAI(
+        PRO_MODEL,
+        [
+          { role: "system", content: SYSTEM_INSTRUCTION },
+          { role: "user", content: `INSTRUCCIONES DEL USUARIO: ${prompt}\n\nCONTENIDO A PROCESAR:\n${text}` },
+        ],
+        true
+      );
+      return JSON.parse(cleanJSONResponse(result || "{}"));
     } catch (e: any) {
-      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
-      handleGeminiError(e);
+      rethrowIfKnown(e);
+      throw e;
     }
   },
 
   async analyzeImage(base64Data: string, mimeType: string, prompt: string = "Analiza esta imagen y extrae la información clave."): Promise<AnalysisResult> {
     try {
-      const response = await ai.models.generateContent({
-        model: FLASH_MODEL,
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          systemInstruction: SYSTEM_INSTRUCTION,
-        }
-      });
-      return JSON.parse(response.text || "{}");
+      // Groq's vision model
+      const visionModel = PROVIDER === "groq" ? "llama-4-scout-17b-16e-instruct" : FLASH_MODEL;
+      const result = await callAI(
+        visionModel,
+        [
+          { role: "system", content: SYSTEM_INSTRUCTION },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+              { type: "text", text: `INSTRUCCIONES DEL USUARIO: ${prompt}` },
+            ],
+          },
+        ],
+        true
+      );
+      return JSON.parse(cleanJSONResponse(result || "{}"));
     } catch (e: any) {
-      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
-      handleGeminiError(e);
+      rethrowIfKnown(e);
+      throw e;
     }
   },
 
-  async analyzeVideo(base64Data: string, mimeType: string, prompt: string = "Analiza este video para obtener información clave."): Promise<AnalysisResult> {
-    try {
-      const response = await ai.models.generateContent({
-        model: FLASH_MODEL,
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          systemInstruction: SYSTEM_INSTRUCTION,
-        }
-      });
-      return JSON.parse(response.text || "{}");
-    } catch (e: any) {
-      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
-      handleGeminiError(e);
-    }
+  async analyzeVideo(_base64Data: string, _mimeType: string, _prompt: string = "Analiza este video."): Promise<AnalysisResult> {
+    throw new Error("El análisis de video inline no está soportado por el proveedor actual. Extrae el audio o usa texto.");
   },
 
   async analyzeFile(base64Data: string, mimeType: string, prompt: string = "Analiza este documento."): Promise<AnalysisResult> {
     try {
-      const response = await ai.models.generateContent({
-        model: PRO_MODEL,
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: `INSTRUCCIONES DEL USUARIO: ${prompt}` }
-          ]
-        },
-        config: {
-          responseMimeType: "application/json",
-          systemInstruction: SYSTEM_INSTRUCTION,
-        }
-      });
-
-      return JSON.parse(response.text || "{}");
+      const visionModel = PROVIDER === "groq" ? "llama-4-scout-17b-16e-instruct" : PRO_MODEL;
+      const result = await callAI(
+        visionModel,
+        [
+          { role: "system", content: SYSTEM_INSTRUCTION },
+          {
+            role: "user",
+            content: [
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Data}` } },
+              { type: "text", text: `INSTRUCCIONES DEL USUARIO: ${prompt}` },
+            ],
+          },
+        ],
+        true
+      );
+      return JSON.parse(cleanJSONResponse(result || "{}"));
     } catch (e: any) {
-      if (e.message?.startsWith("Error de IA:") || e.message?.startsWith("La API") || e.message?.startsWith("Se agotó") || e.message?.startsWith("El archivo")) throw e;
-      handleGeminiError(e);
+      rethrowIfKnown(e);
+      throw e;
     }
   },
 
-  async transcribeAudio(base64Data: string, mimeType: string): Promise<string> {
-    try {
-      const response = await ai.models.generateContent({
-        model: FLASH_MODEL,
-        contents: {
-          parts: [
-            { inlineData: { data: base64Data, mimeType } },
-            { text: "Transcribe este audio palabra por palabra." }
-          ]
-        }
-      });
-      return response.text || "";
-    } catch (e: any) {
-      handleGeminiError(e);
-    }
+  async transcribeAudio(_base64Data: string, _mimeType: string): Promise<string> {
+    throw new Error("La transcripción de audio no está disponible en el proveedor actual. Usa Whisper de OpenAI o Groq directamente.");
   },
 
   async thinkDeeply(query: string): Promise<string> {
     try {
-      const response = await ai.models.generateContent({
-        model: PRO_MODEL,
-        contents: query,
-        config: {
-          thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH }
-        }
-      });
-      return response.text || "";
+      const result = await callAI(
+        PRO_MODEL,
+        [
+          { role: "system", content: "Eres un experto analítico. Piensa profundamente y responde de forma estructurada y detallada." },
+          { role: "user", content: query },
+        ],
+        false
+      );
+      return result;
     } catch (e: any) {
-      handleGeminiError(e);
+      rethrowIfKnown(e);
+      throw e;
     }
-  }
+  },
 };

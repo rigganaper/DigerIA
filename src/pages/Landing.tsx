@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { auth } from '../firebase';
-import { GoogleAuthProvider, signInWithPopup, signInWithRedirect } from 'firebase/auth';
+import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
 import { Layout } from '../components/Layout';
 import { Upload, Link as LinkIcon, Mic, Bolt, Folder, Settings } from 'lucide-react';
 
@@ -142,7 +142,7 @@ const Landing = () => {
           </div>
         </div>
         <div className="max-w-7xl mx-auto mt-20 pt-8 border-t border-[#eeeeee] opacity-20 flex justify-between text-[10px] font-black uppercase tracking-[0.3em]">
-          <span>©2024 DIGERIA_TECH</span>
+          <span>©{new Date().getFullYear()} DIGERIA_TECH</span>
           <span>All_Rights_Reserved</span>
         </div>
       </footer>

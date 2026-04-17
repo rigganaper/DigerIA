@@ -96,7 +96,9 @@ const Profile = () => {
         <div className="lg:col-span-12 flex flex-col md:flex-row items-center justify-between bg-[#e2e2e2] dark:bg-[#1a1c1c] border-4 border-[#1a1c1c] dark:border-[#f9f9f9] p-8 gap-8">
           <div className="flex flex-col gap-1">
             <h3 className="text-2xl font-black uppercase leading-none dark:text-[#f9f9f9]">SUSCRIPCIÓN</h3>
-            <p className="text-sm font-medium dark:text-[#dcdddd]">Billed annually. Next cycle begins October 12, 2024.</p>
+            <p className="text-sm font-medium dark:text-[#dcdddd]">
+              Plan {profile?.tier || 'Free'}. Próximo ciclo: {new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1).toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+            </p>
           </div>
           <button 
             onClick={() => navigate('/plans')}

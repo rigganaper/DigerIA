@@ -9,8 +9,15 @@ const Result = () => {
   const navigate = useNavigate();
   const { result } = location.state || {};
 
-  if (!result) {
-    return <Layout>No result found.</Layout>;
+  if (!result || !result.sections) {
+    return (
+      <Layout showBack>
+        <div className="p-12 text-center border-4 border-[#1a1c1c] dark:border-[#f9f9f9]">
+          <h2 className="text-2xl font-black uppercase mb-4 dark:text-[#f9f9f9]">ERROR DE DATOS</h2>
+          <p className="dark:text-[#f9f9f9]">No se pudo cargar el contenido del análisis. Estructura no válida o inexistente.</p>
+        </div>
+      </Layout>
+    );
   }
 
   const renderSection = (section: AnalysisSection, index: number) => {

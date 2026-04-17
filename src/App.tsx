@@ -20,7 +20,12 @@ import Profile from './pages/Profile';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center font-black uppercase">Loading...</div>;
+  if (loading) return (
+    <div className="min-h-screen bg-[#f3f3f4] dark:bg-[#121212] flex flex-col items-center justify-center p-8 transition-colors">
+      <div className="w-16 h-16 border-4 border-[#1a1c1c] dark:border-[#f9f9f9] border-t-[#b1241a] animate-spin mb-6"></div>
+      <h1 className="text-2xl font-black uppercase tracking-tighter dark:text-[#f9f9f9]">DIGERIA</h1>
+    </div>
+  );
   if (!user) return <Navigate to="/" />;
   return <>{children}</>;
 };

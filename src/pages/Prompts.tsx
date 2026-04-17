@@ -14,6 +14,8 @@ const Prompts = () => {
   const [body, setBody] = useState('');
   const [category, setCategory] = useState<'TECHNICAL' | 'DATA' | 'CREATIVE'>('TECHNICAL');
 
+  const [editingId, setEditingId] = useState<string | null>(null);
+
   useEffect(() => {
     if (!user) return;
     const fetchPrompts = async () => {
@@ -26,20 +28,52 @@ const Prompts = () => {
 
   const handleSave = async () => {
     if (!user || !name || !body) return;
-    const newPrompt = {
-      userId: user.uid,
-      name,
-      body,
-      category,
-      createdAt: new Date().toISOString()
-    };
-    const docRef = await addDoc(collection(db, 'prompts'), newPrompt);
-    setPrompts([{ id: docRef.id, ...newPrompt }, ...prompts]);
-    setName('');
-    setBody('');
+    
+    try {
+      if (editingId) {
+        // Update existing
+        const promptRef = doc(db, 'prompts', editingId);
+        await setDoc(promptRef, {
+          userId: user.uid,
+          name,
+          body,
+          category,
+          updatedAt: new Date().toISOString()
+        }, { merge: true });
+        
+        setPrompts(prompts.map(p => p.id === editingId ? { ...p, name, body, category } : p));
+        setEditingId(null);
+      } else {
+        // Create new
+        const newPrompt = {
+          userId: user.uid,
+          name,
+          body,
+          category,
+          createdAt: new Date().toISOString()
+        };
+        const docRef = await addDoc(collection(db, 'prompts'), newPrompt);
+        setPrompts([{ id: docRef.id, ...newPrompt }, ...prompts]);
+      }
+      
+      setName('');
+      setBody('');
+    } catch (error) {
+      console.error("Error saving prompt:", error);
+      alert("Error al guardar el prompt.");
+    }
+  };
+
+  const handleEdit = (prompt: PromptTemplate) => {
+    setEditingId(prompt.id);
+    setName(prompt.name);
+    setBody(prompt.body);
+    setCategory(prompt.category);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDelete = async (id: string) => {
+    if (!confirm("¿Seguro que quieres borrar este prompt?")) return;
     await deleteDoc(doc(db, 'prompts', id));
     setPrompts(prompts.filter(p => p.id !== id));
   };
@@ -51,7 +85,15 @@ const Prompts = () => {
       </h1>
 
       <div className="mb-16">
-        <button className="bg-[#b1241a] text-white px-8 py-6 border-4 border-[#1a1c1c] dark:border-[#f9f9f9] flex items-center gap-4 transition-none active:translate-y-1">
+        <button 
+          onClick={() => {
+            setEditingId(null);
+            setName('');
+            setBody('');
+            window.scrollTo({ top: 400, behavior: 'smooth' });
+          }}
+          className="bg-[#b1241a] text-white px-8 py-6 border-4 border-[#1a1c1c] dark:border-[#f9f9f9] flex items-center gap-4 transition-none active:translate-y-1"
+        >
           <PlusCircle size={32} />
           <span className="text-xl font-black uppercase tracking-tight">NUEVO PROMPT</span>
         </button>
@@ -59,8 +101,10 @@ const Prompts = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-12">
         <div className="lg:col-span-7 flex flex-col gap-8">
-          <section className="p-8 border-4 border-[#1a1c1c] dark:border-[#f9f9f9] bg-white dark:bg-[#1a1c1c]">
-            <h2 className="text-[1.75rem] font-black uppercase mb-8 text-left dark:text-[#f9f9f9]">ESCRIBIR PROMPT</h2>
+          <section id="prompt-form" className="p-8 border-4 border-[#1a1c1c] dark:border-[#f9f9f9] bg-white dark:bg-[#1a1c1c]">
+            <h2 className="text-[1.75rem] font-black uppercase mb-8 text-left dark:text-[#f9f9f9]">
+              {editingId ? 'EDITAR PROMPT' : 'ESCRIBIR PROMPT'}
+            </h2>
             <div className="space-y-6">
               <div className="flex flex-col gap-2">
                 <label className="text-[0.75rem] font-bold uppercase tracking-widest text-[#1a1c1c] dark:text-[#f9f9f9]">NOMBRE DEL PROMPT</label>
@@ -82,12 +126,26 @@ const Prompts = () => {
                   rows={8}
                 ></textarea>
               </div>
-              <button 
-                onClick={handleSave}
-                className="w-full md:w-auto bg-[#1a1c1c] dark:bg-[#333333] text-white dark:text-white px-10 py-4 font-black uppercase tracking-tight border-2 border-[#1a1c1c] dark:border-[#f9f9f9] hover:bg-[#b1241a] dark:hover:bg-[#b1241a]"
-              >
-                GUARDAR PLANTILLA
-              </button>
+              <div className="flex gap-4">
+                <button 
+                  onClick={handleSave}
+                  className="flex-1 bg-[#1a1c1c] dark:bg-[#333333] text-white dark:text-white px-10 py-4 font-black uppercase tracking-tight border-2 border-[#1a1c1c] dark:border-[#f9f9f9] hover:bg-[#b1241a] dark:hover:bg-[#b1241a]"
+                >
+                  {editingId ? 'ACTUALIZAR' : 'GUARDAR PLANTILLA'}
+                </button>
+                {editingId && (
+                  <button 
+                    onClick={() => {
+                      setEditingId(null);
+                      setName('');
+                      setBody('');
+                    }}
+                    className="px-6 py-4 border-2 border-[#1a1c1c] dark:border-[#f9f9f9] font-black uppercase text-xs"
+                  >
+                    CANCELAR
+                  </button>
+                )}
+              </div>
             </div>
           </section>
         </div>
@@ -108,7 +166,7 @@ const Prompts = () => {
                     )}>{p.category}</span>
                   </div>
                   <div className="flex gap-2 dark:text-[#f9f9f9]">
-                    <button className="hover:text-[#b1241a]"><Edit size={20} /></button>
+                    <button onClick={() => handleEdit(p)} className="hover:text-[#b1241a]"><Edit size={20} /></button>
                     <button onClick={() => handleDelete(p.id)} className="hover:text-[#b1241a]"><Trash2 size={20} /></button>
                   </div>
                 </div>

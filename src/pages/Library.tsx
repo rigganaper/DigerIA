@@ -51,6 +51,24 @@ const Library = () => {
 
   const selectedFolderName = folders.find(f => f.id === selectedFolderId)?.name;
 
+  const handleCreateFolder = async () => {
+    if (!user) return;
+    const name = prompt("Nombre de la nueva carpeta:");
+    if (!name) return;
+
+    try {
+      const docRef = await addDoc(collection(db, 'folders'), {
+        userId: user.uid,
+        name,
+        createdAt: new Date().toISOString()
+      });
+      setFolders(prev => [...prev, { id: docRef.id, userId: user.uid, name, createdAt: new Date().toISOString() }]);
+    } catch (error) {
+      console.error("Error creating folder:", error);
+      alert("Error al crear la carpeta.");
+    }
+  };
+
   return (
     <Layout>
       <section className="mb-12">
@@ -73,7 +91,10 @@ const Library = () => {
       <section className="mb-16">
         <div className="flex justify-between items-end mb-6">
           <h3 className="text-[1.75rem] font-black tracking-tighter uppercase dark:text-[#f9f9f9]">Carpetas</h3>
-          <button className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1c1c] border-2 border-[#1a1c1c] dark:border-[#f9f9f9] hover:bg-[#dcdddd] dark:hover:bg-[#121212] transition-none dark:text-[#f9f9f9]">
+          <button 
+            onClick={handleCreateFolder}
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-[#1a1c1c] border-2 border-[#1a1c1c] dark:border-[#f9f9f9] hover:bg-[#dcdddd] dark:hover:bg-[#121212] transition-none dark:text-[#f9f9f9]"
+          >
             <FolderPlus size={20} />
             <span className="text-xs font-black tracking-tighter uppercase">Nueva Carpeta</span>
           </button>
@@ -91,17 +112,12 @@ const Library = () => {
               <FolderPlus size={40} />
               <h4 className="text-sm font-bold uppercase leading-tight">{f.name}</h4>
             </div>
-          )) : (
-            <>
-              <div className="flex flex-col p-6 bg-white dark:bg-[#121212] border-2 border-[#1a1c1c] dark:border-[#f9f9f9] dark:text-[#f9f9f9] hover:bg-[#dcdddd] dark:hover:bg-[#1a1c1c] transition-none cursor-pointer aspect-square justify-between">
-                <FolderPlus size={40} />
-                <h4 className="text-sm font-bold uppercase leading-tight">Videos de YouTube</h4>
-              </div>
-              <div className="flex flex-col p-6 bg-white dark:bg-[#121212] border-2 border-[#1a1c1c] dark:border-[#f9f9f9] dark:text-[#f9f9f9] hover:bg-[#dcdddd] dark:hover:bg-[#1a1c1c] transition-none cursor-pointer aspect-square justify-between">
-                <FolderPlus size={40} />
-                <h4 className="text-sm font-bold uppercase leading-tight">Informes PDF</h4>
-              </div>
-            </>
+          ) : (
+            <div className="col-span-full py-12 border-2 border-dashed border-[#1a1c1c] dark:border-[#f9f9f9] flex flex-col items-center justify-center bg-white/50 dark:bg-[#1a1c1c]/50">
+              <FolderPlus size={48} className="text-[#b1241a] mb-4 opacity-50" />
+              <p className="font-bold uppercase text-xs opacity-60 dark:text-[#f9f9f9]">Sin carpetas creadas.</p>
+              <p className="text-[10px] uppercase opacity-40 dark:text-[#f9f9f9]">Pulsa "Nueva Carpeta" para empezar.</p>
+            </div>
           )}
         </div>
       </section>

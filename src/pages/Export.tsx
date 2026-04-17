@@ -17,7 +17,49 @@ const Export = () => {
   if (!result) return <Layout>No result to export.</Layout>;
 
   const handleDownload = () => {
-    alert("Descargando archivo...");
+    if (!result) return;
+
+    let exportContent = `# ${result.title}\n\n`;
+
+    result.sections.forEach((section: any) => {
+      // Basic mapping for the checkboxes in this specific UI
+      const isSelected = 
+        (section.type === 'SUMMARY' && selected.resumen) ||
+        (section.type === 'CONCEPTS' && selected.conceptos) ||
+        (section.type === 'ACTION_PLAN' && selected.sugerencia) ||
+        (section.type === 'TECHNICAL' && selected.score) || // Using 'score' as a catch-all for technical for now
+        (!['SUMMARY', 'CONCEPTS', 'ACTION_PLAN', 'TECHNICAL'].includes(section.type)); // Include others by default
+
+      if (isSelected) {
+        exportContent += `## ${section.title}\n`;
+        if (typeof section.content === 'string') {
+          exportContent += `${section.content}\n\n`;
+        } else if (Array.isArray(section.content)) {
+          section.content.forEach((item: any) => {
+            if (typeof item === 'string') {
+              exportContent += `- ${item}\n`;
+            } else {
+              exportContent += `- **${item.title || item.step || 'Item'}**: ${item.description || item.content || JSON.stringify(item)}\n`;
+            }
+          });
+          exportContent += `\n`;
+        } else {
+          exportContent += `${JSON.stringify(section.content, null, 2)}\n\n`;
+        }
+      }
+    });
+
+    const blob = new Blob([exportContent], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${result.title.replace(/\s+/g, '_')}_Análisis.md`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    alert("Descarga iniciada correctamente.");
     navigate('/result', { state: { result } });
   };
 
@@ -34,9 +76,8 @@ const Export = () => {
           <div className="space-y-4">
             {[
               { id: 'resumen', label: 'Resumen Ejecutivo' },
-              { id: 'conceptos', label: '5 Conceptos Clave' },
-              { id: 'sugerencia', label: 'Sugerencia de Acción' },
-              { id: 'score', label: 'Score de Calidad' }
+              { id: 'conceptos', label: 'Conceptos Clave' },
+              { id: 'sugerencia', label: 'Plan de Acción' },
             ].map((opt) => (
               <label 
                 key={opt.id}
@@ -58,7 +99,7 @@ const Export = () => {
           onClick={handleDownload}
           className="w-full bg-[#b1241a] text-white py-6 px-8 font-black text-2xl uppercase tracking-tighter flex items-center justify-between hover:bg-[#b1241a]/90 transition-none border-b-8 border-r-8 border-[#1a1c1c] dark:border-[#f9f9f9]"
         >
-          <span>DESCARGAR ARCHIVO</span>
+          <span>DESCARGAR MARKDOWN</span>
           <Download size={40} />
         </button>
       </section>
