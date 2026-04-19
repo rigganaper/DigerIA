@@ -7,6 +7,7 @@ import mammoth from 'mammoth';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import { db } from '../firebase';
 import { PromptTemplate } from '../types';
+import { cn } from '../lib/utils';
 
 import * as pdfjsLib from 'pdfjs-dist';
 

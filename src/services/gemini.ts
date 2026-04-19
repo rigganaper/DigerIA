@@ -25,14 +25,14 @@ const ENDPOINTS: Record<Provider, string> = {
 
 // Models per provider — all free-tier capable
 const PRO_MODELS: Record<Provider, string> = {
-  groq:       "llama-3.3-70b-versatile",      // 32k context, free
-  openrouter: "google/gemini-2.5-pro-preview-05-06",
-  mistral:    "mistral-small-latest",          // free tier
+  groq:       "llama-3.3-70b-versatile",
+  openrouter: "google/gemini-3.1-pro-preview",
+  mistral:    "mistral-small-latest",
 };
 
 const FLASH_MODELS: Record<Provider, string> = {
-  groq:       "llama-3.1-8b-instant",         // super fast, free
-  openrouter: "google/gemini-2.5-flash-preview-04-17",
+  groq:       "llama-3.1-8b-instant",
+  openrouter: "google/gemini-3.1-flash-lite-preview",
   mistral:    "mistral-small-latest",
 };
 
@@ -184,8 +184,8 @@ export const geminiService = {
 
   async analyzeImage(base64Data: string, mimeType: string, prompt: string = "Analiza esta imagen y extrae la información clave."): Promise<AnalysisResult> {
     try {
-      // Groq's vision model
-      const visionModel = PROVIDER === "groq" ? "llama-4-scout-17b-16e-instruct" : FLASH_MODEL;
+      // Groq's vision model (Llama 4 Scout)
+      const visionModel = PROVIDER === "groq" ? "meta-llama/llama-4-scout-17b-16e-instruct" : "google/gemini-3.1-flash-image-preview";
       const result = await callAI(
         visionModel,
         [
@@ -213,7 +213,7 @@ export const geminiService = {
 
   async analyzeFile(base64Data: string, mimeType: string, prompt: string = "Analiza este documento."): Promise<AnalysisResult> {
     try {
-      const visionModel = PROVIDER === "groq" ? "llama-4-scout-17b-16e-instruct" : PRO_MODEL;
+      const visionModel = PROVIDER === "groq" ? "meta-llama/llama-4-scout-17b-16e-instruct" : PRO_MODEL;
       const result = await callAI(
         visionModel,
         [

@@ -46,7 +46,7 @@ export interface PromptTemplate {
   id: string;
   userId: string;
   name: string;
+  description?: string;
   body: string;
-  category: 'TECHNICAL' | 'DATA' | 'CREATIVE';
   createdAt: string;
 }

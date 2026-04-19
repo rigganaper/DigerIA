@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Layout } from '../components/Layout';
 import { useAuth } from '../AuthContext';
 import { db } from '../firebase';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, addDoc } from 'firebase/firestore';
 import { Folder, Analysis } from '../types';
 import { Search, FolderPlus, FileText, PlayCircle, Mic, File as FileIcon, X } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -112,7 +112,7 @@ const Library = () => {
               <FolderPlus size={40} />
               <h4 className="text-sm font-bold uppercase leading-tight">{f.name}</h4>
             </div>
-          ) : (
+          )) : (
             <div className="col-span-full py-12 border-2 border-dashed border-[#1a1c1c] dark:border-[#f9f9f9] flex flex-col items-center justify-center bg-white/50 dark:bg-[#1a1c1c]/50">
               <FolderPlus size={48} className="text-[#b1241a] mb-4 opacity-50" />
               <p className="font-bold uppercase text-xs opacity-60 dark:text-[#f9f9f9]">Sin carpetas creadas.</p>
